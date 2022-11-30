@@ -1,141 +1,116 @@
 #include <iostream>
 #include <string>
-//#include <SFML/Graphics.hpp> //Добаивть библиотеку в CMakeList.txt
-#include "math.h"
+#include <SFML/Graphics.hpp>
+#include "Functions.h"
+#include "TextBox.h"
+#include "TextButton.h"
+
 using namespace std;
 
-struct movie;
-struct director;
-struct moviesList;
-
-struct director {
-    string firstname;
-    string lastname;
-    string biography;
-    string portraitLink;
-    moviesList * films;
-    director * nextDirector;
-    director * previousDirector;
-};
-
-struct movie {
-    string title;
-    string synopsis;
-    director * director;
-    string originCountry;
-    string posterLink;
-    int yearOfRelease;
-    int budget;
-    int boxOffice;
-    movie * nextMovie;
-    movie * previousMovie;
-    bool seen;
-};
-
-struct directorsDatabase {
-    director * firstDirector;
-    director * lastDirector;
-    int size = 0;
-};
-
-struct moviesList {
-    movie * firstMovie;
-    movie * lastMovie;
-    int size = 0;
-};
-
-void addDirector(directorsDatabase * dDatabase, director * newDirector){
-    if(!dDatabase->size){ //Если список режиссёров пустой
-        //Новый режиссёр будет и первым и последним
-        dDatabase->firstDirector = newDirector;
-        dDatabase->lastDirector = newDirector;
-        dDatabase->size++;
-    }
-    else //Если список не пустой
-    {    // Добавляем нового режиссёра в конец списка
-        dDatabase->lastDirector->nextDirector = newDirector;
-        newDirector->previousDirector = dDatabase->lastDirector;
-        dDatabase->lastDirector = newDirector;
-        dDatabase->size++;
-    }
-}
-
-
-
-void addMovie(moviesList * mList, movie * newMovie){
-    if(!mList->size){ //Если список фильмов пустой
-        //Новый фильм будет и первым и последним
-        mList->firstMovie = newMovie;
-        mList->lastMovie = newMovie;
-        mList->size++;
-    }
-    else //Если список не пустой
-    {    // Добавляем новый фильм в конец списка
-        mList->lastMovie->nextMovie = newMovie;
-        newMovie->previousMovie = mList->lastMovie;
-        mList->lastMovie = newMovie;
-        mList->size++;
-    }
-}
-
-movie getMovie(director director, int index){
-    if(index >= director.films->size){
-        throw "noSuchMovie_error"; // Код ошибки: выход за пределы списка фильмов
-    }
-    movie * desiredMovie = director.films->firstMovie;
-    for(int i = 0; i < index; i++){
-        desiredMovie = desiredMovie->nextMovie;
-    }
-    return *desiredMovie;
-}
-
+#define UI_SCALE 1.0f
 
 int main() {
-    /*string title = "Фильмотека";
-    sf::RenderWindow window(sf::VideoMode(1440, 960), sf::String::fromUtf8(title.begin(), title.end()));
+    //Настройки окна программы
+    string title = "Фильмотека";
+    const int windowHeight = 1024 * UI_SCALE;
+    const int windowWidth = 1440 * UI_SCALE;
+    sf::ContextSettings settings;
+    settings.antialiasingLevel = 16;
+
+    //Вызов окна
+    sf::RenderWindow window(
+            sf::VideoMode(
+                    windowWidth,
+                    windowHeight),
+                    sf::String::fromUtf8(
+                            title.begin(),
+                            title.end()),
+                            sf::Style::Close,
+                            settings);
     window.setFramerateLimit(60);
 
+    //Генерируем текстуру фона
+    sf::Texture backgroundTexture = createBackgroundTexture(
+            windowWidth,
+            windowHeight,
+            sf::Color(65, 65, 65));
+    sf::RectangleShape background;
+    background.setSize(sf::Vector2f(windowWidth, windowHeight));
+    background.setTexture(&backgroundTexture);
+
+    //Подключаем файлы шрифтов
+    sf::Font helveticaNeue_Light;
+    sf::Font helveticaNeue_Regular;
+    sf::Font helveticaNeue_Medium;
+    sf::Font helveticaNeue_Bold;
+    if(!(helveticaNeue_Light.loadFromFile("/Users/mleykhner/Desktop/filmLibrary/resources/HelveticaNeueCyr-Light.ttf") &&
+            helveticaNeue_Regular.loadFromFile("/Users/mleykhner/Desktop/filmLibrary/resources/HelveticaNeueCyr-Roman.ttf") &&
+            helveticaNeue_Medium.loadFromFile("/Users/mleykhner/Desktop/filmLibrary/resources/HelveticaNeueCyr-Medium.ttf") &&
+            helveticaNeue_Bold.loadFromFile("/Users/mleykhner/Desktop/filmLibrary/resources/HelveticaNeueCyr-Bold.ttf"))){
+        throw "FILE_NOT_LOAD";
+    }
+
+    //Подключаем файлы текстур
+    sf::Texture searchTexture;
+    if(!(searchTexture.loadFromFile("/Users/mleykhner/Desktop/filmLibrary/resources/textBox_texture.png"))){
+        throw "FILE_NOT_LOAD";
+    }
+
+    //Загружаем курсоры мыши из системы
+    sf::Cursor arrowCursor;
+    sf::Cursor handCursor;
+    sf::Cursor textCursor;
+    arrowCursor.loadFromSystem(sf::Cursor::Arrow);
+    handCursor.loadFromSystem(sf::Cursor::Hand);
+    textCursor.loadFromSystem(sf::Cursor::Text);
+
+    //Инициализируем элементы интерфейса
+    TextBox searchBox(&searchTexture, 49 * UI_SCALE);
+    searchBox.setPosition(sf::Vector2f(992 * UI_SCALE, 38 * UI_SCALE));
+    searchBox.setFont(helveticaNeue_Medium);
+    searchBox.setArrowCursor(&arrowCursor);
+    searchBox.setTextCursor(&textCursor);
+
+    TextButton searchType(&helveticaNeue_Bold, 49 * UI_SCALE);
+    searchType.setPosition(sf::Vector2f(86 * UI_SCALE, 38 * UI_SCALE));
+    searchType.setText(L"Фильмы");
+    searchType.setArrowCursor(&arrowCursor);
+    searchType.setHandCursor(&handCursor);
+
+    //Обновление кадра
     while (window.isOpen())
     {
-        sf::Event event;
-
+        sf::Event event{};
         while (window.pollEvent(event))
         {
-            if (event.type == sf::Event::Closed)
-                window.close();
+            switch (event.type) {
+                case sf::Event::Closed:
+                    window.close();
+                    break;
+                case sf::Event::MouseButtonPressed:
+                    if(searchBox.isMouseOver(window)){
+                        searchBox.setSelected(true);
+                    }
+                    else{
+                        searchBox.setSelected(false);
+                    }
+                    break;
+                case sf::Event::TextEntered:
+                    searchBox.typedOn(event);
+                    break;
+                default:
+                    break;
+            }
         }
 
         window.clear();
-        //Тут рисуй
+        window.draw(background);
+        searchBox.drawTo(window);
+        //window.draw(films);
+        searchType.onHover(window, searchType.isMouseOver(window));
+        searchBox.onHover(window, searchBox.isMouseOver(window));
+        searchType.drawTo(window);
         window.display();
-    }*/
-
-    directorsDatabase * myDatabase = new directorsDatabase;
-    director * newDirector = new director;
-    addDirector(myDatabase, newDirector);
-    newDirector->firstname = "Bebra";
-    newDirector->lastname = "Bebrovich";
-    newDirector->films = new moviesList;
-    movie * newMovie1 = new movie;
-    movie * newMovie2 = new movie;
-    movie * newMovie3 = new movie;
-    addMovie(newDirector->films, newMovie1);
-    addMovie(newDirector->films, newMovie2);
-    addMovie(newDirector->films, newMovie3);
-    newMovie1->title = "Я – Бебра";
-    newMovie2->title = "Бебринский клуб";
-    //newMovie3->title = "В поисках Бебры";
-
-    try{
-        string movieTitle = getMovie(*myDatabase->firstDirector, 3).title;
-        std::cout << "director: "
-                  << myDatabase->firstDirector->firstname + " " + myDatabase->firstDirector->lastname
-                  << ", movie: " << movieTitle << std::endl;
-    }
-    catch(char const * x){
-        if (x == "noSuchMovie_error"){
-            std::cout << "У этого режиссера нет такого фильма :((" << std::endl;
-        }
     }
 
     return 0;
